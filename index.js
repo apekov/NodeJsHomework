@@ -1,98 +1,43 @@
-const fs = require('fs');
-const path = require('path');
+const http = require('http');
+const port = 3000;
 
-let array = [];
-// Составление массива из путей ко всем изображениям
-function arrayImage(dir) {
-    let dirSpace = fs.readdirSync(dir);
+const interval = process.argv[2] ? Number(process.argv[2]) : 100;
+const timeout = process.argv[3] ? Number(process.argv[3]) : 400;
 
-    dirSpace.forEach(element => {
-        let pathImage = path.join(dir, element);
-        let state = fs.statSync(pathImage);
-
-        if (state.isDirectory()) {
-            arrayImage(pathImage);
-        } else {
-            array.push(pathImage);
-        }
-    });
-}
-// Сортировка массива, получение всех необходимых данным в виде объекта
-function sortArray(array) {
-    let arrayObject = array.map((element) => {
-        let fileName = element.split(path.sep);
-
-        return {
-            filePath: element,
-            fileName: fileName[fileName.length - 1],
-            newDirName: fileName[fileName.length - 1][0].toUpperCase()
-        }
+const requestHandler = (request, response) => {
+    response.writeHead(200, {
+        "Content-Type": "text/plain; charset=utf-8"
     })
-
-    let sort = arrayObject.sort(function(a, b) {
-        if (a.fileName.toLowerCase() < b.fileName.toLowerCase()) { return -1; }
-        if (a.fileName.toLowerCase() > b.fileName.toLowerCase()) { return 1; }
-        return 0;
-    })
-    return sort;
-}
-// Создание новой структуры папок
-function createNewDir(sortArray, dirBegin) {
-    if (!fs.existsSync(`./${dirBegin}`)) {
-        fs.mkdirSync(`./${dirBegin}`);
+    if (request.url !== '/favicon.ico') { 
+        DateStand(interval, timeout).then(date => {
+            response.end('date end: ' + date, 'utf-8');
+        });
     }
-    sortArray.map((element) => {
-        if (!fs.existsSync(`./${dirBegin}/${element.newDirName}`)) {
-            if (element.newDirName != '.') {
-                fs.mkdirSync(`${dirBegin}/${element.newDirName}`);
-            }
-        }
-        if (element.newDirName != '.') {
-            fs.link(element.filePath, `${dirBegin}/${element.newDirName}/${element.fileName}`, (err, data) => {
-                if (err) {
-                    console.error(err.message);
-                    return;
-                }
-            });
-        }
+};
+
+function DateStand(inter, time) {
+    let logDate = setInterval(() => {
+        let data = new Date();
+        console.log(data.toString());
+    }, inter);
+    let datePromise = new Promise((resolve, reject) => {
+        setTimeout(() => {
+            clearInterval(logDate);
+            let data = new Date();
+            let endDate = data.toString();
+            resolve(endDate);
+            console.log('end this seans');
+        }, time);
     })
+    return datePromise;
 }
-// Удаление старой структуры папок
-function deleteOldDir(dir) {
-    let dirSpace = fs.readdirSync(dir);
 
-    dirSpace.forEach(element => {
-        let pathImage = path.join(dir, element);
-        let state = fs.statSync(pathImage);
+let app = http.createServer(requestHandler);
 
-        if (state.isDirectory()) {
-            deleteOldDir(pathImage);
-        } else {
-            fs.unlink(pathImage, err => {
-                if (err) {
-                    console.log(err);
-                    return;
-                }
-                fs.unlinkSync(pathImage);
-            });
-        }
-    });
-    fs.rmdir(dir, err => {
-        if (err) {
-            console.log(err);
-            return;
-        }
-    });
-}
-// Получение данных из значений вводимы при запуске
-const dir = process.argv[2] ? `./${process.argv[2]}` : './img-dir';
-const newDir = process.argv[3] ? `${process.argv[3]}` : 'sortImg';
-const del = process.argv[4];
-
-arrayImage(dir);
-let newPathArray = sortArray(array);
-createNewDir(newPathArray, newDir);
-
-if (del) {
-    deleteOldDir(dir);
-}
+app.listen(port, (err) => {
+    if (err) {
+        console.error('Thats happened???');
+    } else {
+        console.log('app is listen ' + port);
+    }
+});
