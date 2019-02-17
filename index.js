@@ -1,8 +1,9 @@
 const http = require('http');
 const port = 3000;
+require('dotenv').config();
 
-const interval = process.argv[2] ? Number(process.argv[2]) : 100;
-const timeout = process.argv[3] ? Number(process.argv[3]) : 400;
+const interval = Number(process.env.interval);
+const timeout = Number(process.env.timeout);
 
 const requestHandler = (request, response) => {
     response.writeHead(200, {
@@ -10,7 +11,7 @@ const requestHandler = (request, response) => {
     })
     if (request.url !== '/favicon.ico') { 
         DateStand(interval, timeout).then(date => {
-            response.end('date end: ' + date, 'utf-8');
+            response.end('date end: ' + date);
         });
     }
 };
@@ -36,7 +37,7 @@ let app = http.createServer(requestHandler);
 
 app.listen(port, (err) => {
     if (err) {
-        console.error('Thats happened???');
+        console.error('Whats happened???');
     } else {
         console.log('app is listen ' + port);
     }
