@@ -1,98 +1,80 @@
 const fs = require('fs');
 const path = require('path');
 
-let array = [];
-// Составление массива из путей ко всем изображениям
-function arrayImage(dir) {
-    let dirSpace = fs.readdirSync(dir);
-
-    dirSpace.forEach(element => {
-        let pathImage = path.join(dir, element);
-        let state = fs.statSync(pathImage);
-
-        if (state.isDirectory()) {
-            arrayImage(pathImage);
-        } else {
-            array.push(pathImage);
-        }
-    });
-}
-// Сортировка массива, получение всех необходимых данным в виде объекта
-function sortArray(array) {
-    let arrayObject = array.map((element) => {
-        let fileName = element.split(path.sep);
-
-        return {
-            filePath: element,
-            fileName: fileName[fileName.length - 1],
-            newDirName: fileName[fileName.length - 1][0].toUpperCase()
-        }
-    })
-
-    let sort = arrayObject.sort(function(a, b) {
-        if (a.fileName.toLowerCase() < b.fileName.toLowerCase()) { return -1; }
-        if (a.fileName.toLowerCase() > b.fileName.toLowerCase()) { return 1; }
-        return 0;
-    })
-    return sort;
-}
-// Создание новой структуры папок
-function createNewDir(sortArray, dirBegin) {
-    if (!fs.existsSync(`./${dirBegin}`)) {
-        fs.mkdirSync(`./${dirBegin}`);
-    }
-    sortArray.map((element) => {
-        if (!fs.existsSync(`./${dirBegin}/${element.newDirName}`)) {
-            if (element.newDirName != '.') {
-                fs.mkdirSync(`${dirBegin}/${element.newDirName}`);
-            }
-        }
-        if (element.newDirName != '.') {
-            fs.link(element.filePath, `${dirBegin}/${element.newDirName}/${element.fileName}`, (err, data) => {
-                if (err) {
-                    console.error(err.message);
-                    return;
-                }
-            });
-        }
-    })
-}
-// Удаление старой структуры папок
-function deleteOldDir(dir) {
-    let dirSpace = fs.readdirSync(dir);
-
-    dirSpace.forEach(element => {
-        let pathImage = path.join(dir, element);
-        let state = fs.statSync(pathImage);
-
-        if (state.isDirectory()) {
-            deleteOldDir(pathImage);
-        } else {
-            fs.unlink(pathImage, err => {
-                if (err) {
-                    console.log(err);
-                    return;
-                }
-                fs.unlinkSync(pathImage);
-            });
-        }
-    });
-    fs.rmdir(dir, err => {
-        if (err) {
-            console.log(err);
-            return;
-        }
-    });
-}
-// Получение данных из значений вводимы при запуске
-const dir = process.argv[2] ? `./${process.argv[2]}` : './img-dir';
+const dirOld = process.argv[2] ? `${process.argv[2]}` : 'img-dir';
 const newDir = process.argv[3] ? `${process.argv[3]}` : 'sortImg';
-const del = process.argv[4];
+const del = process.argv[4] === 'del';
 
-arrayImage(dir);
-let newPathArray = sortArray(array);
-createNewDir(newPathArray, newDir);
-
-if (del) {
-    deleteOldDir(dir);
+let readDirAsync = path => {
+    return new Promise((res, rej) => {
+        fs.readdir(path, (err, files) => {
+            if (err) {
+                rej(err);
+            } else {
+                let array = [];
+                files.forEach(file => {
+                    if (file[0] !== '.') {
+                        array.push(file);
+                    }
+                })
+                res(array);
+            }
+        })
+    })
 }
+let mkdirDirAsync = path => {
+    return new Promise((resolve, reject) => {
+        fs.mkdir(path, err => {
+            if (err && err.code !== 'EEXIST') {
+                reject(err)
+            } else {
+                resolve(true);
+            }
+        })
+    })
+}
+let linkAsync = (basePath, newPathDir) => {
+    return new Promise((resolve, reject) => {
+        let fileName = basePath.split(path.sep);
+        fs.link(`./${basePath}`, `./${newPathDir}/${fileName[fileName.length - 1]}`, err => {
+            if (err) {
+                reject(err)
+            }
+        })
+    })
+}
+
+let recursionCopyFolder = async dirBase => {
+    try {
+        let dirSpace = await readDirAsync(dirBase);
+
+        dirSpace.forEach(async element => {
+            let dirSrc = path.join(dirBase, element);
+            let newDirName = element[0].toUpperCase();
+
+            if (element.includes('.')) {
+                await mkdirDirAsync(path.join(newDir, newDirName));
+                await linkAsync(dirSrc, path.join(newDir, newDirName));
+
+            } else {
+                recursionCopyFolder(dirSrc);
+            }
+            if (del) {
+                console.log(dirSrc);
+            }
+        })
+    } catch (err) {
+        console.log(err);
+    }
+}
+fs.stat(`./${newDir}`, (err, stats) => {
+    if (err) {
+        mkdirDirAsync(newDir).then();
+    }
+})
+recursionCopyFolder(dirOld);
+
+process.on('unhandledRejection', (reason, p) => {
+    console.log('Unhandled Rejection at:', p, 'reason:', reason);
+    process.exit(1);
+});
